@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>오늘 뭐 먹지? - 스마트 점심 & 저녁 추천 시스템</title>
+    <!-- Tailwind CSS for modern responsive styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for premium typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Gowun+Dodum&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <!-- FontAwesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Noto Sans KR', 'Inter', 'sans-serif'],
+                        accent: ['Gowun Dodum', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#fffaf0',
+                            100: '#fef3c7',
+                            500: '#f97316',
+                            600: '#ea580c',
+                            700: '#c2410c',
+                            heavy: '#1e1b4b'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        @keyframes bounce-slow {
+            0%, 100% { transform: translateY(-5%); }
+            50% { transform: translateY(0); }
+        }
+        .animate-bounce-slow {
+            animation: bounce-slow 2s infinite ease-in-out;
+        }
+        
+        /* Smooth transition for theme switching */
+        body {
+            transition: background 0.5s ease, color 0.3s ease;
+        }
+        
+        /* --- Dinner Mode Twilight Theme Styles --- */
+        body.dinner-mode {
+            background: linear-gradient(135deg, #090d16 0%, #111029 50%, #200b2b 100%) !important;
+            color: #f1f5f9 !important;
+        }
+        body.dinner-mode header {
+            background-color: rgba(15, 23, 42, 0.8) !important;
+            border-color: #312e81 !important;
+        }
+        body.dinner-mode .bg-white {
+            background-color: #1e293b !important;
+            color: #f1f5f9 !important;
+            border-color: #334155 !important;
+        }
+        body.dinner-mode .text-slate-800,
+        body.dinner-mode .text-slate-700 {
+            color: #f1f5f9 !important;
+        }
+        body.dinner-mode .text-slate-500,
+        body.dinner-mode .text-slate-400 {
+            color: #94a3b8 !important;
+        }
+        body.dinner-mode .bg-slate-50,
+        body.dinner-mode .bg-slate-100 {
+            background-color: #334155 !important;
+            color: #e2e8f0 !important;
+        }
+        body.dinner-mode .border-orange-100,
+        body.dinner-mode .border-slate-100 {
+            border-color: #475569 !important;
+        }
+        /* Dinner Mode Color Accents Override */
+        body.dinner-mode .bg-orange-500 {
+            background-color: #8b5cf6 !important; /* purple-500 */
+        }
+        body.dinner-mode .bg-orange-500:hover {
+            background-color: #7c3aed !important;
+        }
+        body.dinner-mode .text-orange-500 {
+            color: #a78bfa !important; /* purple-400 */
+        }
+        body.dinner-mode .bg-orange-100 {
+            background-color: #4c1d95 !important;
+            color: #ddd6fe !important;
+        }
+        body.dinner-mode .from-orange-500 {
+            --tw-gradient-from: #8b5cf6 !important;
+            --tw-gradient-to: #ec4899 !important;
+            --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+        }
+        body.dinner-mode .from-amber-50 {
+            --tw-gradient-from: #090d16 !important;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 min-h-screen text-slate-800 font-sans flex flex-col antialiased">
+
+    <script>
+        // 기본 제공 추천 메뉴 데이터베이스 (점심, 저녁 태그 구분 지원)
+        const DEFAULT_MENUS = [
+            // 점심/저녁 공통 또는 점심 친화 메뉴들
+            { id: 1, name: "김치찌개", category: "한식", emoji: "🍲", weather: ["rainy", "cold"], mood: ["stressful", "comfort"], price: "cheap", spicy: "spicy", time: ["lunch", "dinner"] },
+            { id: 2, name: "제육볶음", category: "한식", emoji: "🐷", weather: ["normal", "cold"], mood: ["hungry", "comfort"], price: "medium", spicy: "spicy", time: ["lunch", "dinner"] },
+            { id: 3, name: "돈카츠", category: "일식", emoji: "🥩", weather: ["normal", "hot"], mood: ["hungry", "treat"], price: "medium", spicy: "none", time: ["lunch", "dinner"] },
+            { id: 4, name: "초밥", category: "일식", emoji: "🍣", weather: ["hot", "normal"], mood: ["treat", "clean"], price: "expensive", spicy: "none", time: ["lunch", "dinner"] },
+            { id: 5, name: "짜장면", category: "중식", emoji: "🍜", weather: ["normal"], mood: ["hungry", "lazy"], price: "cheap", spicy: "none", time: ["lunch", "dinner"] },
+            { id: 6, name: "짬뽕", category: "중식", emoji: "🔥", weather: ["rainy", "cold"], mood: ["stressful", "hungry"], price: "medium", spicy: "spicy", time: ["lunch", "dinner"] },
+            { id: 7, name: "파스타", category: "양식", emoji: "🍝", weather: ["normal"], mood: ["treat", "clean"], price: "medium", spicy: "none", time: ["lunch", "dinner"] },
+            { id: 8, name: "햄버거", category: "패스트푸드", emoji: "🍔", weather: ["hot", "normal"], mood: ["lazy", "hungry"], price: "cheap", spicy: "none", time: ["lunch"] },
+            { id: 9, name: "떡볶이", category: "분식", emoji: "🌶️", weather: ["normal", "rainy"], mood: ["stressful", "lazy"], price: "cheap", spicy: "spicy", time: ["lunch", "dinner"] },
+            { id: 10, name: "샐러드", category: "다이어트", emoji: "🥗", weather: ["hot", "normal"], mood: ["clean"], price: "medium", spicy: "none", time: ["lunch"] },
+            { id: 11, name: "부대찌개", category: "한식", emoji: "🥘", weather: ["rainy", "cold"], mood: ["hungry", "comfort"], price: "medium", spicy: "spicy", time: ["lunch", "dinner"] },
+            { id: 12, name: "쌀국수", category: "아시안", emoji: "🍜", weather: ["cold", "rainy"], mood: ["clean", "comfort"], price: "medium", spicy: "none", time: ["lunch", "dinner"] },
+            { id: 13, name: "삼겹살정식", category: "한식", emoji: "🥓", weather: ["normal", "cold"], mood: ["treat", "hungry"], price: "expensive", spicy: "none", time: ["lunch"] },
+            { id: 14, name: "텐동", category: "일식", emoji: "🍤", weather: ["normal"], mood: ["treat", "hungry"], price: "expensive", spicy: "none", time: ["lunch", "dinner"] },
+            { id: 15, name: "마라탕", category: "중식", emoji: "🌶️", weather: ["rainy", "cold"], mood: ["stressful", "hungry"], price: "medium", spicy: "spicy", time: ["lunch", "dinner"] },
+            { id: 16, name: "샌드위치", category: "다이어트", emoji: "🥪", weather: ["hot", "normal"], mood: ["clean", "lazy"], price: "cheap", spicy: "none", time: ["lunch"] },
+            { id: 17, name: "비빔밥", category: "한식", emoji: "🥗", weather: ["normal"], mood: ["clean", "comfort"], price: "medium", spicy: "none", time: ["lunch"] },
+            { id: 18, name: "피자", category: "양식", emoji: "🍕", weather: ["normal"], mood: ["treat", "lazy"], price: "expensive", spicy: "none", time: ["lunch", "dinner"] },
+            { id: 19, name: "순대국", category: "한식", emoji: "🍲", weather: ["cold", "rainy"], mood: ["comfort", "hungry"], price: "cheap", spicy: "none", time: ["lunch", "dinner"] },
+            { id: 20, name: "냉면", category: "한식", emoji: "❄️", weather: ["hot"], mood: ["clean", "lazy"], price: "medium", spicy: "none", time: ["lunch"] },
+            
+            // 저녁/야식 전문 특화 메뉴들
+            { id: 21, name: "치맥 (치킨)", category: "패스트푸드", emoji: "🍗", weather: ["normal", "hot"], mood: ["stressful", "treat"], price: "expensive", spicy: "none", time: ["dinner"] },
+            { id: 22, name: "소곱창 구이", category: "한식", emoji: "🥩", weather: ["rainy", "cold"], mood: ["treat", "hungry"], price: "expensive", spicy: "none", time: ["dinner"] },
+            { id: 23, name: "모듬 회", category: "일식", emoji: "🐟", weather: ["normal", "hot"], mood: ["treat", "clean"], price: "expensive", spicy: "none", time: ["dinner"] },
+            { id: 24, name: "족발과 보쌈", category: "한식", emoji: "🐷", weather: ["normal"], mood: ["hungry", "comfort"], price: "expensive", spicy: "none", time: ["dinner"] },
+            { id: 25, name: "감자탕", category: "한식", emoji: "🍲", weather: ["rainy", "cold"], mood: ["hungry", "comfort"], price: "medium", spicy: "spicy", time: ["dinner"] },
+            { id: 26, name: "닭갈비", category: "한식", emoji: "🐔", weather: ["normal"], mood: ["hungry", "stressful"], price: "medium", spicy: "spicy", time: ["dinner"] },
+            { id: 27, name: "양꼬치", category: "중식", emoji: "🍢", weather: ["cold"], mood: ["treat", "hungry"], price: "expensive", spicy: "none", time: ["dinner"] },
+            { id: 28, name: "매운 닭발", category: "한식", emoji: "🐓", weather: ["rainy", "normal"], mood: ["stressful", "lazy"], price: "medium", spicy: "spicy", time: ["dinner"] },
+            { id: 29, name: "조개구이", category: "일식", emoji: "🐚", weather: ["normal", "cold"], mood: ["treat"], price: "expensive", spicy: "none", time: ["dinner"] },
+            { id: 30, name: "소고기 와규구이", category: "한식", emoji: "🥩", weather: ["normal"], mood: ["treat", "hungry"], price: "expensive", spicy: "none", time: ["dinner"] }
+        ];
+
+        // 앱 상태 관리 (점심/저녁 상태 추가)
+        let currentMealMode = localStorage.getItem('currentMealMode') || 'lunch'; // 'lunch' or 'dinner'
+        let userCustomMenus = JSON.parse(localStorage.getItem('userCustomMenus')) || [];
+
+        // 현재 모드에 해당하는 액티브 메뉴 추출
+        function getActiveMenus() {
+            const combined = [...DEFAULT_MENUS, ...userCustomMenus];
+            return combined.filter(menu => menu.time.includes(currentMealMode));
+        }
+    </script>
+
+    <script>
+        // Web Audio API를 활용한 효과음 합성 장치
+        const AudioHelper = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            },
+            playTick() {
+                this.init();
+                if (!this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.frequency.setValueAtTime(450, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(150, this.ctx.currentTime + 0.08);
+                    gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.08);
+                } catch(e) {}
+            },
+            playWin() {
+                this.init();
+                if (!this.ctx) return;
+                try {
+                    const playTone = (freq, delay, duration) => {
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, this.ctx.currentTime + delay);
+                        gain.gain.setValueAtTime(0, this.ctx.currentTime + delay);
+                        gain.gain.linearRampToValueAtTime(0.12, this.ctx.currentTime + delay + 0.02);
+                        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + delay + duration);
+                        osc.start(this.ctx.currentTime + delay);
+                        osc.stop(this.ctx.currentTime + delay + duration);
+                    };
+                    playTone(523.25, 0.0, 0.15); // C5
+                    playTone(659.25, 0.15, 0.15); // E5
+                    playTone(783.99, 0.3, 0.15); // G5
+                    playTone(1046.50, 0.45, 0.4); // C6
+                } catch(e) {}
+            }
+        };
+
+        class Confetti {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.particles = [];
+                this.colors = ['#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#ec4899', '#8b5cf6'];
+                this.active = false;
+                
+                window.addEventListener('resize', () => this.resize());
+                this.resize();
+            }
+            resize() {
+                this.canvas.width = this.canvas.parentElement.clientWidth;
+                this.canvas.height = this.canvas.parentElement.clientHeight;
+            }
+            start() {
+                this.active = true;
+                this.particles = [];
+                for (let i = 0; i < 100; i++) {
+                    this.particles.push({
+                        x: this.canvas.width / 2,
+                        y: this.canvas.height / 2 + 100,
+                        vx: (Math.random() - 0.5) * 15,
+                        vy: (Math.random() * -15) - 10,
+                        size: Math.random() * 8 + 6,
+                        color: this.colors[Math.floor(Math.random() * this.colors.length)],
+                        rotation: Math.random() * 360,
+                        rSpeed: (Math.random() - 0.5) * 10,
+                        gravity: 0.3,
+                        alpha: 1
+                    });
+                }
+                this.animate();
+            }
+            animate() {
+                if (!this.active) return;
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                let alive = false;
+                this.particles.forEach(p => {
+                    p.x += p.vx;
+                    p.vy += p.gravity;
+                    p.y += p.vy;
+                    p.rotation += p.rSpeed;
+                    p.alpha -= 0.01;
+
+                    if (p.y < this.canvas.height && p.alpha > 0) {
+                        alive = true;
+                        this.ctx.save();
+                        this.ctx.translate(p.x, p.y);
+                        this.ctx.rotate((p.rotation * Math.PI) / 180);
+                        this.ctx.fillStyle = p.color;
+                        this.ctx.globalAlpha = p.alpha;
+                        this.ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+                        this.ctx.restore();
+                    }
+                });
+                if (alive) {
+                    requestAnimationFrame(() => this.animate());
+                } else {
+                    this.active = false;
+                    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                }
+            }
+        }
+    </script>
+
+    <!-- Header -->
+    <header class="bg-white/80 backdrop-blur-md border-b border-orange-100 sticky top-0 z-50 transition-all">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center space-x-2">
+                <span id="app-logo-emoji" class="text-3xl">🍲</span>
+                <div>
+                    <h1 class="text-xl font-bold bg-gradient-to-r from-orange-600 to-amber-500 bg-clip-text text-transparent id-app-title">오늘 뭐 먹지?</h1>
+                    <p id="app-subtitle" class="text-xs text-slate-500 hidden sm:block">스마트 결정장애 구원 시스템 (점심 & 저녁)</p>
+                </div>
+            </div>
+            
+            <!-- Meal Mode Switcher Button (점심/저녁 토글) -->
+            <div class="flex items-center gap-2">
+                <div class="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-2xl text-xs font-bold shadow-inner border border-slate-200">
+                    <button onclick="setMealMode('lunch')" id="mode-btn-lunch" class="px-4 py-2 rounded-xl transition duration-300 flex items-center gap-1">
+                        ☀️ 점심 모드
+                    </button>
+                    <button onclick="setMealMode('dinner')" id="mode-btn-dinner" class="px-4 py-2 rounded-xl transition duration-300 flex items-center gap-1">
+                        🌙 저녁 모드
+                    </button>
+                </div>
+
+                <!-- Tab Navigation Buttons -->
+                <div class="flex bg-slate-100 p-1 rounded-2xl text-sm font-medium border border-slate-200">
+                    <button onclick="switchTab('roulette')" id="tab-roulette" class="nav-tab px-4 py-1.5 rounded-xl bg-white text-slate-800 shadow-sm transition">
+                        🎯 룰렛
+                    </button>
+                    <button onclick="switchTab('recommend')" id="tab-recommend" class="nav-tab px-4 py-1.5 rounded-xl text-slate-600 hover:text-slate-800 transition">
+                        🧠 맞춤추천
+                    </button>
+                    <button onclick="switchTab('worldcup')" id="tab-worldcup" class="nav-tab px-4 py-1.5 rounded-xl text-slate-600 hover:text-slate-800 transition">
+                        🏆 월드컵
+                    </button>
+                    <button onclick="switchTab('custom')" id="tab-custom" class="nav-tab px-4 py-1.5 rounded-xl text-slate-600 hover:text-slate-800 transition">
+                        ✍️ 내메뉴
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Panel -->
+    <main class="flex-grow max-w-4xl w-full mx-auto p-4 flex flex-col justify-center relative">
+        <canvas id="confetti-canvas" class="absolute inset-0 pointer-events-none z-40 w-full h-full"></canvas>
+
+        <!-- ROUTLETTE TAB VIEW -->
+        <section id="view-roulette" class="tab-content block">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+                
+                <!-- Left: Roulette Wheel Controls and Display -->
+                <div class="md:col-span-7 flex flex-col items-center justify-center bg-white rounded-3xl p-6 shadow-xl border border-orange-100 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-orange-100 rounded-full blur-3xl opacity-50 -mr-10 -mt-10"></div>
+                    
+                    <!-- Wheel Title -->
+                    <h2 id="roulette-view-title" class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                        <i class="fa-solid fa-arrows-spin text-orange-500 animate-spin"></i> 돌려라! 결정장애 탈출 룰렛
+                    </h2>
+
+                    <!-- Wheel Container -->
+                    <div class="relative w-72 h-72 sm:w-80 sm:h-80 flex items-center justify-center">
+                        <!-- Red Arrow Indicator -->
+                        <div class="absolute top-0 z-30 -mt-3 text-orange-600 text-3xl filter drop-shadow">
+                            <i class="fa-solid fa-caret-down"></i>
+                        </div>
+                        
+                        <!-- Canvas Wheel -->
+                        <canvas id="wheel-canvas" class="w-full h-full rounded-full border-4 border-slate-800 shadow-2xl transition-transform duration-100 ease-out"></canvas>
+                        
+                        <!-- Center Button Hook -->
+                        <button onclick="spinWheel()" id="spin-btn" class="absolute z-20 w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-orange-600 hover:from-amber-300 hover:to-orange-500 text-white font-extrabold text-sm border-4 border-white shadow-lg active:scale-95 transition flex items-center justify-center">
+                            GO!
+                        </button>
+                    </div>
+
+                    <!-- Spin Helper Buttons -->
+                    <div class="mt-8 flex gap-3 w-full max-w-sm">
+                        <button onclick="randomSelect()" id="btn-spin-action" class="flex-1 py-3 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold shadow hover:shadow-lg active:scale-98 transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-dice-five"></i> 룰렛 돌리기
+                        </button>
+                        <button onclick="toggleFilterModal()" class="py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold active:scale-98 transition flex items-center justify-center gap-2" title="선택 메뉴 필터링">
+                            <i class="fa-solid fa-sliders"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Right: Active List Display and Results -->
+                <div class="md:col-span-5 flex flex-col h-full space-y-4">
+                    <!-- Current Category Pool Indicator -->
+                    <div class="bg-slate-800 text-white rounded-2xl p-4 shadow-lg">
+                        <h3 class="font-bold text-sm text-orange-300 mb-1">🎯 룰렛 후보 구성</h3>
+                        <p id="pool-desc" class="text-xs text-slate-300 mb-3">현재 아래의 메뉴 후보들 중 하나가 무작위로 추첨됩니다.</p>
+                        <div id="roulette-pool-badges" class="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto custom-scrollbar pr-2">
+                            <!-- Badges injected by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Instant Result Box -->
+                    <div id="result-box" class="bg-white rounded-2xl p-6 shadow-xl border border-orange-100 flex flex-col items-center justify-center text-center flex-grow min-h-[180px] transition duration-300 scale-100">
+                        <div id="result-initial" class="flex flex-col items-center">
+                            <span id="result-initial-emoji" class="text-5xl animate-bounce-slow mb-4">🤤</span>
+                            <h4 id="result-initial-text" class="text-lg font-bold text-slate-700">과연 오늘 어떤 걸 드시게 될까요?</h4>
+                            <p class="text-sm text-slate-400 mt-1">상단의 돌리기 버튼을 클릭해 주세요!</p>
+                        </div>
+                        <div id="result-success" class="hidden w-full flex-col items-center">
+                            <span id="win-badge-text" class="text-xs font-bold text-orange-500 tracking-widest uppercase bg-orange-100 px-3 py-1 rounded-full mb-2">오늘의 메뉴 당첨</span>
+                            <span id="win-emoji" class="text-6xl mb-2">🍗</span>
+                            <h3 id="win-name" class="text-2xl font-black text-slate-800">양념치킨</h3>
+                            <span id="win-category" class="text-xs text-slate-400 mt-1">#분식 #기타</span>
+                            
+                            <!-- Search Map Action Buttons -->
+                            <div class="mt-4 flex flex-col sm:flex-row gap-2 w-full">
+                                <a id="naver-search-btn" target="_blank" href="#" class="flex-1 py-2 px-3 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition">
+                                    <i class="fa-solid fa-map-location-dot"></i> 네이버 지도 검색
+                                </a>
+                                <a id="kakao-search-btn" target="_blank" href="#" class="flex-1 py-2 px-3 bg-yellow-400 hover:bg-yellow-500 text-amber-950 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition">
+                                    <i class="fa-solid fa-location-crosshairs"></i> 카카오 맵 검색
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- RECOMMENDATION (QUESTIONNAIRE) TAB VIEW -->
+        <section id="view-recommend" class="tab-content hidden">
+            <div class="bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-orange-100 max-w-2xl mx-auto">
+                <div class="text-center mb-8">
+                    <span id="survey-header-emoji" class="text-3xl">🧠</span>
+                    <h2 id="survey-title" class="text-2xl font-black text-slate-800 mt-2">오늘 상황 맞춤형 메뉴 제안</h2>
+                    <p id="survey-subtitle" class="text-sm text-slate-500 mt-1">현재 상태에 최적화된 최적의 식사 매칭</p>
+                </div>
+
+                <form id="recommend-form" class="space-y-6">
+                    <!-- Q1. Weather -->
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-3 flex items-center gap-1.5">
+                            <i class="fa-solid fa-cloud-sun text-sky-500"></i> 1. 오늘의 바깥 날씨는 어떤가요?
+                        </label>
+                        <div class="grid grid-cols-3 gap-3">
+                            <label class="border-2 border-slate-100 rounded-2xl p-3 flex flex-col items-center justify-center cursor-pointer hover:border-orange-500 transition-all text-center bg-white select-card">
+                                <input type="radio" name="q-weather" value="normal" checked class="sr-only select-weather">
+                                <span class="text-2xl">☀️</span>
+                                <span class="text-xs font-bold mt-2 text-slate-600">맑음/보통</span>
+                            </label>
+                            <label class="border-2 border-slate-100 rounded-2xl p-3 flex flex-col items-center justify-center cursor-pointer hover:border-orange-500 transition-all text-center bg-white select-card">
+                                <input type="radio" name="q-weather" value="rainy" class="sr-only select-weather">
+                                <span class="text-2xl">☔</span>
+                                <span class="text-xs font-bold mt-2 text-slate-600">비/눈/꾸물함</span>
+                            </label>
+                            <label class="border-2 border-slate-100 rounded-2xl p-3 flex flex-col items-center justify-center cursor-pointer hover:border-orange-500 transition-all text-center bg-white select-card">
+                                <input type="radio" name="q-weather" value="cold" class="sr-only select-weather">
+                                <span class="text-2xl">❄️</span>
+                                <span class="text-xs font-bold mt-2 text-slate-600">추움/으스스함</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Q2. Mood -->
+                    <div>
+                        <label id="survey-q2-title" class="block text-sm font-bold text-slate-700 mb-3 flex items-center gap-1.5">
+                            <i class="fa-solid fa-heart text-rose-500"></i> 2. 오늘 식사의 목적/상태는?
+                        </label>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <label class="border-2 border-slate-100 rounded-2xl p-3 flex flex-col items-center cursor-pointer hover:border-orange-500 transition-all text-center bg-white select-card">
+                                <input type="checkbox" name="q-mood" value="hungry" class="sr-only select-mood">
+                                <span class="text-2xl">🦖</span>
+                                <span class="text-xs font-bold mt-2 text-slate-600">엄청 배고픔</span>
+                            </label>
+                            <label class="border-2 border-slate-100 rounded-2xl p-3 flex flex-col items-center cursor-pointer hover:border-orange-500 transition-all text-center bg-white select-card">
+                                <input type="checkbox" name="q-mood" value="stressful" class="sr-only select-mood">
+                                <span class="text-2xl">⚡</span>
+                                <span class="text-xs font-bold mt-2 text-slate-600">스트레스 해소</span>
+                            </label>
+                            <label class="border-2 border-slate-100 rounded-2xl p-3 flex flex-col items-center cursor-pointer hover:border-orange-500 transition-all text-center bg-white select-card">
+                                <input type="checkbox" name="q-mood" value="clean" class="sr-only select-mood">
+                                <span class="text-2xl">🥗</span>
+                                <span class="text-xs font-bold mt-2 text-slate-600">건강/속편하게</span>
+                            </label>
+                            <label class="border-2 border-slate-100 rounded-2xl p-3 flex flex-col items-center cursor-pointer hover:border-orange-500 transition-all text-center bg-white select-card">
+                                <input type="checkbox" name="q-mood" value="treat" class="sr-only select-mood">
+                                <span class="text-2xl">✨</span>
+                                <span class="text-xs font-bold mt-2 text-slate-600">호사스런 한끼</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Q3. Taste preferences -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-1.5">
+                                <i class="fa-solid fa-pepper-hot text-red-500"></i> 매운맛 선호도
+                            </label>
+                            <select id="q-spicy" class="w-full bg-slate-50 border-2 border-slate-100 p-3 rounded-2xl text-sm font-medium focus:border-orange-500 outline-none transition">
+                                <option value="any">상관없음</option>
+                                <option value="spicy">🔥 얼큰하고 화끈하게</option>
+                                <option value="none">🥬 자극없이 순하게</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-1.5">
+                                <i class="fa-solid fa-won-sign text-emerald-600"></i> 예상 지출 금액대
+                            </label>
+                            <select id="q-price" class="w-full bg-slate-50 border-2 border-slate-100 p-3 rounded-2xl text-sm font-medium focus:border-orange-500 outline-none transition">
+                                <option value="any">상관없음</option>
+                                <option value="cheap">💵 알뜰 지갑(만원 이하)</option>
+                                <option value="medium">💸 일반 대중(만원대)</option>
+                                <option value="expensive">💎 플렉스(2만원 이상)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Recommendation CTA -->
+                    <button type="button" onclick="getCustomRecommendation()" id="btn-survey-action" class="w-full py-4 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black text-base shadow-lg hover:shadow-xl active:scale-98 transition flex items-center justify-center gap-2">
+                        💡 최적의 매칭 푸드 진단하기
+                    </button>
+                </form>
+
+                <!-- Recommendation Outcome Panel -->
+                <div id="recommend-result-panel" class="hidden mt-6 border-t-2 border-slate-100 pt-6">
+                    <h3 class="font-bold text-center text-slate-800 mb-4">🩺 스마트 진단 기반 강력 추천 메뉴!</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="recommendation-cards-container">
+                        <!-- Result cards will be loaded here dynamically -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- WORLD CUP (TOURNAMENT) TAB VIEW -->
+        <section id="view-worldcup" class="tab-content hidden">
+            <div class="bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-orange-100 max-w-2xl mx-auto relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-24 h-24 bg-yellow-100 rounded-full blur-2xl opacity-40"></div>
+                
+                <div id="wc-intro" class="text-center py-6">
+                    <span class="text-5xl">🏆</span>
+                    <h2 id="wc-intro-title" class="text-2xl font-black text-slate-800 mt-4">오늘 점심 메뉴 이상형 월드컵</h2>
+                    <p id="wc-intro-subtitle" class="text-sm text-slate-500 mt-2">랜덤 추출된 8개 점심 최강 메뉴 대격돌!<br>치열한 대결 끝에 당신이 최선으로 원하는 진짜 정답을 가려냅니다.</p>
+                    <button onclick="startWorldCup()" id="btn-wc-start" class="mt-8 px-8 py-3.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-base shadow hover:shadow-lg transition active:scale-95">
+                        월드컵 시작하기 (8강)
+                    </button>
+                </div>
+
+                <div id="wc-game" class="hidden">
+                    <!-- Round Header -->
+                    <div class="text-center mb-6">
+                        <span id="wc-round-name" class="text-xs font-bold bg-amber-100 text-amber-800 px-3 py-1 rounded-full">점심 월드컵 8강</span>
+                        <div class="flex items-center justify-center gap-2 mt-2">
+                            <span id="wc-match-index" class="text-sm text-slate-500 font-bold">1 / 4 경기</span>
+                        </div>
+                    </div>
+
+                    <!-- Versus Arena -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 relative items-center">
+                        <!-- VS Badge Center -->
+                        <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 bg-slate-800 text-white font-black text-sm w-10 h-10 rounded-full flex items-center justify-center border-4 border-white shadow-lg pointer-events-none">
+                            VS
+                        </div>
+
+                        <!-- Candidate Left -->
+                        <button onclick="selectWCWinner(0)" id="wc-cand-0" class="group flex flex-col items-center justify-center text-center p-8 rounded-3xl bg-slate-50 hover:bg-orange-50 border-4 border-slate-100 hover:border-orange-400 cursor-pointer shadow-sm hover:shadow-md transition active:scale-98 relative min-h-[220px]">
+                            <span id="wc-cand-0-emoji" class="text-6xl group-hover:scale-110 transition duration-300">🍜</span>
+                            <span id="wc-cand-0-name" class="text-xl font-extrabold text-slate-800 mt-4">짜장면</span>
+                            <span id="wc-cand-0-cat" class="text-xs text-slate-400 mt-1">#중식</span>
+                        </button>
+
+                        <!-- Candidate Right -->
+                        <button onclick="selectWCWinner(1)" id="wc-cand-1" class="group flex flex-col items-center justify-center text-center p-8 rounded-3xl bg-slate-50 hover:bg-orange-50 border-4 border-slate-100 hover:border-orange-400 cursor-pointer shadow-sm hover:shadow-md transition active:scale-98 relative min-h-[220px]">
+                            <span id="wc-cand-1-emoji" class="text-6xl group-hover:scale-110 transition duration-300">🍲</span>
+                            <span id="wc-cand-1-name" class="text-xl font-extrabold text-slate-800 mt-4">김치찌개</span>
+                            <span id="wc-cand-1-cat" class="text-xs text-slate-400 mt-1">#한식</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- World Cup Victory Celebration -->
+                <div id="wc-winner" class="hidden text-center py-6">
+                    <span id="wc-winner-badge" class="text-xs font-bold text-orange-600 tracking-wider uppercase bg-orange-100 px-3 py-1 rounded-full">🏆 최종 우승 메뉴 🏆</span>
+                    <div class="my-6">
+                        <span id="wc-winner-emoji" class="text-8xl animate-bounce-slow inline-block">🍕</span>
+                        <h3 id="wc-winner-name" class="text-3xl font-black text-slate-800 mt-4">피자</h3>
+                        <p id="wc-winner-cat" class="text-sm text-slate-400 mt-1">#양식</p>
+                    </div>
+                    
+                    <p class="text-sm text-slate-600 mb-6">치열한 이상형 배틀 끝에 마침내 오늘의 메뉴로 낙점되었습니다!</p>
+
+                    <!-- Near Map Buttons for World Cup Winner -->
+                    <div class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto justify-center">
+                        <a id="wc-naver-btn" target="_blank" href="#" class="flex-1 py-3 px-4 bg-green-600 hover:bg-green-700 text-white rounded-2xl text-sm font-bold flex items-center justify-center gap-1.5 transition">
+                            <i class="fa-solid fa-map-location-dot"></i> 네이버 지도로 찾기
+                        </a>
+                        <a id="wc-kakao-btn" target="_blank" href="#" class="flex-1 py-3 px-4 bg-yellow-400 hover:bg-yellow-500 text-amber-950 rounded-2xl text-sm font-bold flex items-center justify-center gap-1.5 transition">
+                            <i class="fa-solid fa-location-crosshairs"></i> 카카오 맵으로 찾기
+                        </a>
+                    </div>
+
+                    <button onclick="resetWorldCup()" class="mt-8 text-xs font-bold text-slate-400 hover:text-slate-600 underline transition">
+                        이상형 월드컵 다시 시작하기
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- CUSTOM MENU MANAGEMENT TAB VIEW -->
+        <section id="view-custom" class="tab-content hidden">
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                <!-- Left: Add custom item form -->
+                <div class="md:col-span-5 bg-white rounded-3xl p-6 shadow-xl border border-orange-100 flex flex-col justify-between h-fit">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+                            <i class="fa-solid fa-file-pen text-orange-500"></i> 나만의 단골메뉴 추가
+                        </h2>
+                        <p class="text-xs text-slate-500 mb-6">자주 드시거나 가고 싶은 비밀 단골식당 시그니처 메뉴가 있다면 룰렛 후보에 편입해 보세요!</p>
+
+                        <form id="custom-menu-form" onsubmit="addCustomMenu(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1.5">메뉴 이름</label>
+                                <input type="text" id="custom-name" placeholder="예: 엄마손 곱창전골" required class="w-full bg-slate-50 border-2 border-slate-100 p-3 rounded-xl text-sm font-medium outline-none focus:border-orange-500 transition">
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 mb-1.5">대표 이모지</label>
+                                    <select id="custom-emoji" class="w-full bg-slate-50 border-2 border-slate-100 p-3 rounded-xl text-sm font-medium outline-none focus:border-orange-500 transition">
+                                        <option value="🍲">🍲 국/찌개</option>
+                                        <option value="🍖">🍖 고기/구이</option>
+                                        <option value="🍜">🍜 면/국수</option>
+                                        <option value="🍣">🍣 해산물/회</option>
+                                        <option value="🥪">🥪 간편식</option>
+                                        <option value="🥗">🥗 샐러드/웰빙</option>
+                                        <option value="🍕">🍕 패스트푸드</option>
+                                        <option value="🍽️">🍽️ 기타</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 mb-1.5">카테고리</label>
+                                    <select id="custom-category" class="w-full bg-slate-50 border-2 border-slate-100 p-3 rounded-xl text-sm font-medium outline-none focus:border-orange-500 transition">
+                                        <option value="한식">한식</option>
+                                        <option value="일식">일식</option>
+                                        <option value="중식">중식</option>
+                                        <option value="양식">양식</option>
+                                        <option value="분식">분식</option>
+                                        <option value="아시안">아시안</option>
+                                        <option value="다이어트">다이어트</option>
+                                        <option value="기타">기타</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Q4. Meal Target time (추가된 점심/저녁 타겟 선택) -->
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1.5">추천 대상 시간대</label>
+                                <select id="custom-time-target" class="w-full bg-slate-50 border-2 border-slate-100 p-3 rounded-xl text-sm font-medium outline-none focus:border-orange-500 transition">
+                                    <option value="both">☀️ 점심 & 🌙 저녁 모두</option>
+                                    <option value="lunch">☀️ 점심 식사용만</option>
+                                    <option value="dinner">🌙 저녁/야식용만</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="w-full py-3.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm shadow transition">
+                                등록 및 반영하기
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Right: Custom items display and lists -->
+                <div class="md:col-span-7 bg-white rounded-3xl p-6 shadow-xl border border-orange-100">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-1.5">
+                            <i class="fa-solid fa-list-check text-orange-500"></i> 내 등록 메뉴 리스트
+                        </h2>
+                        <button onclick="clearAllCustomMenus()" class="text-xs text-rose-500 hover:text-rose-700 font-bold underline transition">
+                            전체 초기화
+                        </button>
+                    </div>
+
+                    <div id="custom-list-container" class="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                        <!-- Custom list items dynamically loaded by JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ROULETTE CANDIDATE FILTER SLIDER MODAL -->
+    <div id="filter-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-all duration-300">
+        <div class="bg-white rounded-3xl p-6 max-w-md w-full mx-4 shadow-2xl relative">
+            <h3 class="text-lg font-extrabold text-slate-800 mb-1 flex items-center gap-2">
+                <i class="fa-solid fa-filter text-orange-500"></i> 룰렛 후보 필터 설정
+            </h3>
+            <p class="text-xs text-slate-500 mb-4">룰렛에 올리기 싫은 카테고리를 제외하거나 조율하세요.</p>
+            
+            <div id="filter-checkbox-group" class="grid grid-cols-2 gap-2 mb-6">
+                <!-- Javascript will render categories checkboxes here -->
+            </div>
+
+            <div class="flex gap-2">
+                <button onclick="applyFilters()" class="flex-1 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm shadow transition">
+                    필터 적용
+                </button>
+                <button onclick="toggleFilterModal()" class="flex-1 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition">
+                    닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer Copyright -->
+    <footer class="text-center py-6 text-xs text-slate-400 border-t border-slate-100 bg-white/50 backdrop-blur-sm mt-8">
+        <p>© 2026 오늘 뭐 먹지? All rights reserved.</p>
+        <p class="mt-1">지도 아이콘을 클릭하시면 주변 맛집으로 바로 연결됩니다.</p>
+    </footer>
+
+    <script>
+        // 전역 상태 변수들
+        let selectedCategories = [];
+        let wheelCanvas, wheelCtx;
+        let currentAngle = 0;
+        let isSpinning = false;
+        let confetti = null;
+
+        // 월드컵에 사용되는 내부 상태
+        let wcList = [];
+        let wcRoundList = [];
+        let wcWinners = [];
+        let wcCurrentIndex = 0;
+        let wcRoundSize = 8; // 8강 고정
+
+        window.onload = function() {
+            // 콘페티 캔버스 연동
+            const cCanvas = document.getElementById('confetti-canvas');
+            confetti = new Confetti(cCanvas);
+
+            // 룰렛 초기 카테고리 설정
+            const uniqueCategories = [...new Set(getActiveMenus().map(m => m.category))];
+            selectedCategories = [...uniqueCategories];
+
+            // 활성 모드 UI 업데이트 적용
+            applyMealModeUI();
+            
+            // UI 바인딩
+            renderRoulettePool();
+            renderCustomMenus();
+            renderFilterCheckboxes();
+        };
+
+        // 점심 / 저녁 모드 원터치 교체기
+        function setMealMode(mode) {
+            currentMealMode = mode;
+            localStorage.setItem('currentMealMode', mode);
+            
+            // 카테고리 리셋
+            const uniqueCategories = [...new Set(getActiveMenus().map(m => m.category))];
+            selectedCategories = [...uniqueCategories];
+
+            applyMealModeUI();
+            
+            // 리랜더링
+            initRoulette();
+            renderRoulettePool();
+            renderCustomMenus();
+            renderFilterCheckboxes();
+            
+            // 열려있는 월드컵 초기화
+            resetWorldCup();
+        }
+
+        // 모드 변경에 따른 유기적 뷰 변경 처리 (테마 및 텍스트)
+        function applyMealModeUI() {
+            const body = document.body;
+            const logo = document.getElementById('app-logo-emoji');
+            const subTitle = document.getElementById('app-subtitle');
+            
+            const btnLunch = document.getElementById('mode-btn-lunch');
+            const btnDinner = document.getElementById('mode-btn-dinner');
+
+            if (currentMealMode === 'dinner') {
+                body.classList.add('dinner-mode');
+                logo.innerText = '🌙';
+                subTitle.innerText = '스마트 결정장애 구원 시스템 (저녁 모드)';
+                
+                // 버튼 상태 클래스 조정
+                btnDinner.className = "px-4 py-2 rounded-xl bg-indigo-600 text-white shadow-sm transition duration-300 flex items-center gap-1";
+                btnLunch.className = "px-4 py-2 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition duration-300 flex items-center gap-1";
+
+                // 각종 다이내믹 텍스트 변경
+                document.querySelectorAll('.id-app-title').forEach(el => el.innerText = '오늘 저녁 뭐 먹지?');
+                document.getElementById('roulette-view-title').innerHTML = `<i class="fa-solid fa-arrows-spin text-indigo-400 animate-spin"></i> 돌려라! 결정장애 탈출 저녁 룰렛`;
+                document.getElementById('result-initial-emoji').innerText = '🌃';
+                document.getElementById('result-initial-text').innerText = '오늘 저녁은 과연 무엇이 될까요?';
+                document.getElementById('survey-title').innerText = '오늘 저녁 상황 맞춤형 제안';
+                document.getElementById('survey-subtitle').innerText = '현재 컨디션과 분위기에 적합한 디너 요리 제안';
+                document.getElementById('survey-q2-title').innerHTML = `<i class="fa-solid fa-wine-glass text-indigo-400"></i> 2. 오늘 저녁 식사의 컨셉트는?`;
+                document.getElementById('wc-intro-title').innerText = '오늘 저녁 메뉴 이상형 월드컵';
+                document.getElementById('wc-intro-subtitle').innerText = '엄선된 8개의 군침 도는 야식/저녁 전용 토너먼트 격돌!';
+                document.getElementById('btn-wc-start').innerText = '월드컵 시작하기 (저녁 8강)';
+                document.getElementById('win-badge-text').innerText = '오늘 저녁 당첨 요리';
+                document.getElementById('wc-winner-badge').innerText = '🏆 최종 선정된 저녁 메뉴 🏆';
+            } else {
+                body.classList.remove('dinner-mode');
+                logo.innerText = '🍲';
+                subTitle.innerText = '스마트 결정장애 구원 시스템 (점심 모드)';
+
+                btnLunch.className = "px-4 py-2 rounded-xl bg-orange-500 text-white shadow-sm transition duration-300 flex items-center gap-1";
+                btnDinner.className = "px-4 py-2 rounded-xl text-slate-500 hover:text-slate-800 transition duration-300 flex items-center gap-1";
+
+                document.querySelectorAll('.id-app-title').forEach(el => el.innerText = '오늘 점심 뭐 먹지?');
+                document.getElementById('roulette-view-title').innerHTML = `<i class="fa-solid fa-arrows-spin text-orange-500 animate-spin"></i> 돌려라! 결정장애 탈출 점심 룰렛`;
+                document.getElementById('result-initial-emoji').innerText = '🤤';
+                document.getElementById('result-initial-text').innerText = '과연 오늘 점심은 어떤 걸 드시게 될까요?';
+                document.getElementById('survey-title').innerText = '오늘 상황 맞춤형 메뉴 제안';
+                document.getElementById('survey-subtitle').innerText = '현재 상태에 최적화된 최적의 점심 메뉴 매칭';
+                document.getElementById('survey-q2-title').innerHTML = `<i class="fa-solid fa-heart text-rose-500"></i> 2. 오늘 점심 식사의 목적/상태는?`;
+                document.getElementById('wc-intro-title').innerText = '오늘 점심 메뉴 이상형 월드컵';
+                document.getElementById('wc-intro-subtitle').innerText = '랜덤 추출된 8개 점심 최강 메뉴 대격돌!';
+                document.getElementById('btn-wc-start').innerText = '월드컵 시작하기 (점심 8강)';
+                document.getElementById('win-badge-text').innerText = '오늘의 메뉴 당첨';
+                document.getElementById('wc-winner-badge').innerText = '🏆 최종 우승 메뉴 🏆';
+            }
+        }
+
+        // 탭 토글 시스템
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(view => {
+                view.classList.add('hidden');
+            });
+            document.getElementById(`view-${tabId}`).classList.remove('hidden');
+
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.className = 'nav-tab px-4 py-1.5 rounded-xl text-slate-600 hover:text-slate-800 transition';
+            });
+            document.getElementById(`tab-${tabId}`).className = 'nav-tab px-4 py-1.5 rounded-xl bg-white text-slate-800 shadow-sm transition';
+
+            // 탭 변경 시 리셋 처리
+            if (tabId === 'roulette') {
+                setTimeout(() => {
+                    initRoulette();
+                    renderRoulettePool();
+                }, 50);
+            }
+        }
+
+        // --- 룰렛 비즈니스 로직 ---
+        function initRoulette() {
+            wheelCanvas = document.getElementById('wheel-canvas');
+            if (!wheelCanvas) return;
+            wheelCtx = wheelCanvas.getContext('2d');
+            
+            // 고해상도 드로잉 지원
+            const size = 600;
+            wheelCanvas.width = size;
+            wheelCanvas.height = size;
+            drawWheel(0);
+        }
+
+        function getFilteredMenusForWheel() {
+            return getActiveMenus().filter(m => selectedCategories.includes(m.category));
+        }
+
+        function drawWheel(angleOffset) {
+            const menus = getFilteredMenusForWheel();
+            if (menus.length === 0) {
+                wheelCtx.clearRect(0, 0, wheelCanvas.width, wheelCanvas.height);
+                wheelCtx.fillStyle = currentMealMode === 'dinner' ? '#94a3b8' : '#334155';
+                wheelCtx.font = 'bold 30px Noto Sans KR';
+                wheelCtx.textAlign = 'center';
+                wheelCtx.fillText('후보를 선택해 주세요!', wheelCanvas.width/2, wheelCanvas.height/2);
+                return;
+            }
+
+            const arc = (Math.PI * 2) / menus.length;
+            const radius = wheelCanvas.width / 2;
+            const cx = radius;
+            const cy = radius;
+
+            wheelCtx.clearRect(0, 0, wheelCanvas.width, wheelCanvas.height);
+
+            // 테두리 두께 및 색상
+            wheelCtx.lineWidth = 14;
+            wheelCtx.strokeStyle = currentMealMode === 'dinner' ? '#312e81' : '#1e293b';
+
+            // 현대적인 세련된 컬러 배열 (점심/저녁 룰렛 색 조합 스왑 지원)
+            const lunchColors = [
+                '#ffedd5', '#fed7aa', '#fdba74', '#f97316', 
+                '#ea580c', '#fef3c7', '#fde68a', '#fcd34d'
+            ];
+            const dinnerColors = [
+                '#1e1b4b', '#312e81', '#3730a3', '#4338ca',
+                '#4c1d95', '#5b21b6', '#6d28d9', '#7c3aed'
+            ];
+            const colors = currentMealMode === 'dinner' ? dinnerColors : lunchColors;
+
+            for (let i = 0; i < menus.length; i++) {
+                const angle = i * arc + angleOffset;
+                wheelCtx.beginPath();
+                // 원형 채우기
+                wheelCtx.fillStyle = colors[i % colors.length];
+                wheelCtx.moveTo(cx, cy);
+                wheelCtx.arc(cx, cy, radius - 10, angle, angle + arc);
+                wheelCtx.lineTo(cx, cy);
+                wheelCtx.fill();
+                wheelCtx.stroke();
+
+                // 텍스트 그리기
+                wheelCtx.save();
+                wheelCtx.translate(cx, cy);
+                wheelCtx.rotate(angle + arc / 2);
+                
+                // 텍스트 속성
+                wheelCtx.fillStyle = currentMealMode === 'dinner' ? '#f1f5f9' : '#1e293b';
+                wheelCtx.font = menus.length > 12 ? 'bold 20px Noto Sans KR' : 'bold 24px Noto Sans KR';
+                wheelCtx.textAlign = 'right';
+                
+                // 음식 명칭 + 이모지
+                const text = menus[i].emoji + ' ' + menus[i].name;
+                wheelCtx.fillText(text, radius - 40, 8);
+                wheelCtx.restore();
+            }
+
+            // 중앙 심볼 장식
+            wheelCtx.beginPath();
+            wheelCtx.arc(cx, cy, 35, 0, Math.PI * 2);
+            wheelCtx.fillStyle = currentMealMode === 'dinner' ? '#4f46e5' : '#1e293b';
+            wheelCtx.fill();
+            wheelCtx.beginPath();
+            wheelCtx.arc(cx, cy, 10, 0, Math.PI * 2);
+            wheelCtx.fillStyle = '#ffffff';
+            wheelCtx.fill();
+        }
+
+        function spinWheel() {
+            if (isSpinning) return;
+            const menus = getFilteredMenusForWheel();
+            if (menus.length === 0) {
+                alert('룰렛에 표시할 메뉴 카테고리를 한 개 이상 허용해 주세요!');
+                return;
+            }
+
+            // AudioContext 안전 가동 촉구
+            AudioHelper.init();
+
+            isSpinning = true;
+            document.getElementById('spin-btn').disabled = true;
+
+            const resultBox = document.getElementById('result-box');
+            document.getElementById('result-initial').classList.remove('hidden');
+            document.getElementById('result-success').classList.add('hidden');
+            resultBox.classList.add('scale-95');
+
+            let speed = Math.random() * 0.4 + 0.3; // 회전 시작 속도
+            let currentRotation = currentAngle;
+            let tickCounter = 0;
+            const tickDistance = (Math.PI * 2) / menus.length;
+
+            function animate() {
+                currentRotation += speed;
+                // 감속 공식
+                speed *= 0.985;
+
+                // 마찰음 감지 및 발생
+                const segmentIndex = Math.floor(currentRotation / tickDistance);
+                if (segmentIndex !== tickCounter) {
+                    AudioHelper.playTick();
+                    tickCounter = segmentIndex;
+                }
+
+                drawWheel(currentRotation);
+
+                if (speed > 0.002) {
+                    requestAnimationFrame(animate);
+                } else {
+                    isSpinning = false;
+                    currentAngle = currentRotation % (Math.PI * 2);
+                    document.getElementById('spin-btn').disabled = false;
+                    resultBox.classList.remove('scale-95');
+                    
+                    // 화살표가 가리키는 대상 계산 (최상단은 -90도, 즉 1.5 * Math.PI 위치)
+                    const normalizedAngle = (1.5 * Math.PI - currentAngle) % (Math.PI * 2);
+                    const finalAngle = normalizedAngle < 0 ? normalizedAngle + Math.PI * 2 : normalizedAngle;
+                    
+                    const arc = (Math.PI * 2) / menus.length;
+                    const winningIndex = Math.floor(finalAngle / arc) % menus.length;
+                    
+                    showWinner(menus[winningIndex]);
+                }
+            }
+            animate();
+        }
+
+        function randomSelect() {
+            spinWheel();
+        }
+
+        function showWinner(item) {
+            AudioHelper.playWin();
+            confetti.start();
+
+            document.getElementById('result-initial').classList.add('hidden');
+            document.getElementById('result-success').classList.remove('hidden');
+
+            document.getElementById('win-emoji').innerText = item.emoji;
+            document.getElementById('win-name').innerText = item.name;
+            document.getElementById('win-category').innerText = `#${item.category}`;
+
+            // 네이버 / 카카오 맵 링크 연동 업데이트
+            const searchKeyword = "주변 " + item.name + " 맛집";
+            document.getElementById('naver-search-btn').href = `https://map.naver.com/v5/search/${encodeURIComponent(searchKeyword)}`;
+            document.getElementById('kakao-search-btn').href = `https://map.kakao.com/?q=${encodeURIComponent(searchKeyword)}`;
+        }
+
+        // --- 필터 제어 모달 로직 ---
+        function toggleFilterModal() {
+            const modal = document.getElementById('filter-modal');
+            if (modal.classList.contains('hidden')) {
+                modal.classList.remove('hidden');
+                setTimeout(() => modal.classList.add('opacity-100'), 50);
+                renderFilterCheckboxes();
+            } else {
+                modal.classList.remove('opacity-100');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            }
+        }
+
+        function renderFilterCheckboxes() {
+            const uniqueCategories = [...new Set(getActiveMenus().map(m => m.category))];
+            const container = document.getElementById('filter-checkbox-group');
+            container.innerHTML = '';
+
+            uniqueCategories.forEach(cat => {
+                const checked = selectedCategories.includes(cat) ? 'checked' : '';
+                container.innerHTML += `
+                    <label class="flex items-center gap-2 p-3 bg-slate-50 hover:bg-orange-50 dark:hover:bg-indigo-900 rounded-xl cursor-pointer transition">
+                        <input type="checkbox" value="${cat}" ${checked} class="w-4 h-4 accent-orange-500 filter-cat-chk">
+                        <span class="text-sm font-semibold text-slate-700">${cat}</span>
+                    </label>
+                `;
+            });
+        }
+
+        function applyFilters() {
+            const chks = document.querySelectorAll('.filter-cat-chk');
+            const newSelections = [];
+            chks.forEach(chk => {
+                if (chk.checked) newSelections.push(chk.value);
+            });
+
+            if (newSelections.length === 0) {
+                alert('최소 하나의 카테고리는 가동해야 합니다!');
+                return;
+            }
+
+            selectedCategories = newSelections;
+            toggleFilterModal();
+            initRoulette();
+            renderRoulettePool();
+        }
+
+        function renderRoulettePool() {
+            const active = getFilteredMenusForWheel();
+            const badgeContainer = document.getElementById('roulette-pool-badges');
+            badgeContainer.innerHTML = '';
+            
+            active.forEach(item => {
+                badgeContainer.innerHTML += `
+                    <span class="inline-flex items-center gap-1 text-xs font-bold bg-white/25 backdrop-blur border border-white/10 px-2 py-1 rounded-lg text-slate-800 dark:text-white dark:bg-slate-700/60">
+                        <span>${item.emoji}</span>
+                        <span>${item.name}</span>
+                    </span>
+                `;
+            });
+        }
+
+        // --- 맞춤 진단 추천 알고리즘 ---
+        function getCustomRecommendation() {
+            const weather = document.querySelector('input[name="q-weather"]:checked').value;
+            
+            // Mood 다중 선택 확인
+            const checkedMoods = [];
+            document.querySelectorAll('.select-mood:checked').forEach(c => {
+                checkedMoods.push(c.value);
+            });
+
+            const spicy = document.getElementById('q-spicy').value;
+            const price = document.getElementById('q-price').value;
+
+            // 정밀 우선 가치 점수 계산
+            const scored = getActiveMenus().map(menu => {
+                let score = 0;
+
+                // 날씨 적합도 판정
+                if (menu.weather.includes(weather)) {
+                    score += 4;
+                }
+
+                // 기분/상황 다중 매치 여부
+                checkedMoods.forEach(mood => {
+                    if (menu.mood.includes(mood)) {
+                        score += 3;
+                    }
+                });
+
+                // 맵기 선호도 조율
+                if (spicy !== 'any') {
+                    if (menu.spicy === spicy) score += 5;
+                    else score -= 3;
+                }
+
+                // 가격 맞춤선
+                if (price !== 'any') {
+                    if (menu.price === price) score += 5;
+                    else score -= 2;
+                }
+
+                return { ...menu, score };
+            });
+
+            // 최고점 순으로 2가지 제안 추출
+            scored.sort((a, b) => b.score - a.score);
+            const topTwo = scored.slice(0, 2);
+
+            const container = document.getElementById('recommendation-cards-container');
+            container.innerHTML = '';
+
+            topTwo.forEach(item => {
+                const keyword = "주변 " + item.name + " 맛집";
+                const naverMapUrl = `https://map.naver.com/v5/search/${encodeURIComponent(keyword)}`;
+                const kakaoMapUrl = `https://map.kakao.com/?q=${encodeURIComponent(keyword)}`;
+
+                container.innerHTML += `
+                    <div class="bg-slate-50 dark:bg-slate-800 rounded-2xl p-5 border-2 border-slate-100 dark:border-slate-700 flex flex-col justify-between hover:border-orange-200 dark:hover:border-indigo-400 transition">
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-4xl">${item.emoji}</span>
+                                <span class="text-xs font-bold bg-orange-100 text-orange-700 dark:bg-indigo-900/60 dark:text-indigo-200 px-2 py-0.5 rounded-md">${item.category}</span>
+                            </div>
+                            <h4 class="text-lg font-black text-slate-800 dark:text-white">${item.name}</h4>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">당신의 현재 기분과 예산, 바깥 기온을 종합적으로 채점하여 최적의 적합도를 가진 메뉴로 판명되었습니다.</p>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-2 mt-4">
+                            <a target="_blank" href="${naverMapUrl}" class="py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white text-xs font-bold text-center flex items-center justify-center gap-1 transition">
+                                <i class="fa-solid fa-location-dot"></i> 네이버 검색
+                            </a>
+                            <a target="_blank" href="${kakaoMapUrl}" class="py-2 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-amber-950 text-xs font-bold text-center flex items-center justify-center gap-1 transition">
+                                <i class="fa-solid fa-magnifying-glass"></i> 카카오 맵
+                            </a>
+                        </div>
+                    </div>
+                `;
+            });
+
+            document.getElementById('recommend-result-panel').classList.remove('hidden');
+            // 부드러운 스크롤 이동
+            document.getElementById('recommend-result-panel').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // --- 이상형 월드컵 비즈니스 로직 ---
+        function startWorldCup() {
+            const allMenus = [...getActiveMenus()];
+            if (allMenus.length < 8) {
+                alert('월드컵 구성을 위해 현재 시간대 모드에 부합하는 메뉴가 최소 8개 이상 보장되어야 합니다! (내메뉴 등록을 활용해 더 채워주세요)');
+                return;
+            }
+
+            // 무작위로 8가지 메뉴 셔플링 후 선별
+            const shuffled = allMenus.sort(() => 0.5 - Math.random());
+            wcList = shuffled.slice(0, 8);
+            
+            wcRoundList = [...wcList];
+            wcWinners = [];
+            wcCurrentIndex = 0;
+            wcRoundSize = 8;
+
+            document.getElementById('wc-intro').classList.add('hidden');
+            document.getElementById('wc-winner').classList.add('hidden');
+            document.getElementById('wc-game').classList.remove('hidden');
+
+            renderWCMatch();
+        }
+
+        function renderWCMatch() {
+            // 이번 라운드 대진 명칭 산정
+            let roundName = `${wcRoundSize}강`;
+            if (wcRoundSize === 4) roundName = '준결승 4강';
+            if (wcRoundSize === 2) roundName = '결승전';
+
+            const matchTypeLabel = currentMealMode === 'dinner' ? '저녁' : '점심';
+            document.getElementById('wc-round-name').innerText = `🏆 ${matchTypeLabel} 월드컵 ${roundName}`;
+            document.getElementById('wc-match-index').innerText = `${(wcCurrentIndex / 2) + 1} / ${wcRoundSize / 2} 경기`;
+
+            // 매칭 정보 바인딩
+            const cand0 = wcRoundList[wcCurrentIndex];
+            const cand1 = wcRoundList[wcCurrentIndex + 1];
+
+            document.getElementById('wc-cand-0-emoji').innerText = cand0.emoji;
+            document.getElementById('wc-cand-0-name').innerText = cand0.name;
+            document.getElementById('wc-cand-0-cat').innerText = `#${cand0.category}`;
+
+            document.getElementById('wc-cand-1-emoji').innerText = cand1.emoji;
+            document.getElementById('wc-cand-1-name').innerText = cand1.name;
+            document.getElementById('wc-cand-1-cat').innerText = `#${cand1.category}`;
+            
+            // 단순 틱음 재생
+            AudioHelper.playTick();
+        }
+
+        function selectWCWinner(candidateOffset) {
+            const winner = wcRoundList[wcCurrentIndex + candidateOffset];
+            wcWinners.push(winner);
+            
+            wcCurrentIndex += 2;
+
+            // 라운드 잔여 매칭 검토
+            if (wcCurrentIndex >= wcRoundList.length) {
+                if (wcWinners.length === 1) {
+                    // 대망의 우승자 발표
+                    showWCWinner(wcWinners[0]);
+                } else {
+                    // 다음 하위 토너먼트 진입 준비
+                    wcRoundList = [...wcWinners];
+                    wcWinners = [];
+                    wcCurrentIndex = 0;
+                    wcRoundSize = wcRoundList.length;
+                    renderWCMatch();
+                }
+            } else {
+                renderWCMatch();
+            }
+        }
+
+        function showWCWinner(winner) {
+            AudioHelper.playWin();
+            confetti.start();
+
+            document.getElementById('wc-game').classList.add('hidden');
+            document.getElementById('wc-winner').classList.remove('hidden');
+
+            document.getElementById('wc-winner-emoji').innerText = winner.emoji;
+            document.getElementById('wc-winner-name').innerText = winner.name;
+            document.getElementById('wc-winner-cat').innerText = `#${winner.category}`;
+
+            const searchKeyword = "주변 " + winner.name + " 맛집";
+            document.getElementById('wc-naver-btn').href = `https://map.naver.com/v5/search/${encodeURIComponent(searchKeyword)}`;
+            document.getElementById('wc-kakao-btn').href = `https://map.kakao.com/?q=${encodeURIComponent(searchKeyword)}`;
+        }
+
+        function resetWorldCup() {
+            document.getElementById('wc-winner').classList.add('hidden');
+            document.getElementById('wc-game').classList.add('hidden');
+            document.getElementById('wc-intro').classList.remove('hidden');
+        }
+
+        // --- 나만의 단골메뉴 관리 로직 ---
+        function addCustomMenu(e) {
+            e.preventDefault();
+            const name = document.getElementById('custom-name').value.trim();
+            const emoji = document.getElementById('custom-emoji').value;
+            const category = document.getElementById('custom-category').value;
+            const timeTarget = document.getElementById('custom-time-target').value;
+
+            if (!name) return;
+
+            // 중복 가드
+            if (getActiveMenus().some(m => m.name === name)) {
+                alert('이미 메뉴 데이터베이스에 등재된 브랜드나 품목입니다!');
+                return;
+            }
+
+            // 타겟 범위 지정 파싱
+            let targetTimes = [];
+            if (timeTarget === 'both') {
+                targetTimes = ["lunch", "dinner"];
+            } else {
+                targetTimes = [timeTarget];
+            }
+
+            const newItem = {
+                id: Date.now(),
+                name,
+                category,
+                emoji,
+                weather: ["normal", "rainy", "cold"],
+                mood: ["hungry", "treat", "comfort"],
+                price: "medium",
+                spicy: "none",
+                time: targetTimes
+            };
+
+            userCustomMenus.push(newItem);
+            localStorage.setItem('userCustomMenus', JSON.stringify(userCustomMenus));
+            
+            // 입력창 완전 클리어
+            document.getElementById('custom-name').value = '';
+
+            renderCustomMenus();
+            initRoulette();
+            renderRoulettePool();
+        }
+
+        function removeCustomMenu(id) {
+            userCustomMenus = userCustomMenus.filter(m => m.id !== id);
+            localStorage.setItem('userCustomMenus', JSON.stringify(userCustomMenus));
+            renderCustomMenus();
+            initRoulette();
+            renderRoulettePool();
+        }
+
+        function clearAllCustomMenus() {
+            if (confirm('내가 등록한 메뉴 리스트를 전부 삭제하시겠습니까?')) {
+                userCustomMenus = [];
+                localStorage.removeItem('userCustomMenus');
+                renderCustomMenus();
+                initRoulette();
+                renderRoulettePool();
+            }
+        }
+
+        function renderCustomMenus() {
+            const container = document.getElementById('custom-list-container');
+            container.innerHTML = '';
+
+            if (userCustomMenus.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 text-slate-400">
+                        <span class="text-4xl">✍️</span>
+                        <p class="text-xs font-bold mt-2">등록하신 나만의 메뉴가 없습니다.</p>
+                        <p class="text-[10px] text-slate-400 mt-1">좌측 서식에 기입해 자유롭게 보강해 보세요!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            userCustomMenus.forEach(menu => {
+                // 어떤 모드용인지 레이블 설정
+                let timeBadgeHtml = '';
+                if (menu.time.includes('lunch') && menu.time.includes('dinner')) {
+                    timeBadgeHtml = `<span class="text-[9px] bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold px-1.5 py-0.5 rounded">All-day</span>`;
+                } else if (menu.time.includes('dinner')) {
+                    timeBadgeHtml = `<span class="text-[9px] bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 font-bold px-1.5 py-0.5 rounded">🌙 저녁 전용</span>`;
+                } else {
+                    timeBadgeHtml = `<span class="text-[9px] bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 font-bold px-1.5 py-0.5 rounded">☀️ 점심 전용</span>`;
+                }
+
+                container.innerHTML += `
+                    <div class="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-orange-50/50 dark:hover:bg-indigo-900/40 transition duration-200">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">${menu.emoji}</span>
+                            <div>
+                                <div class="flex items-center gap-1.5">
+                                    <h4 class="text-sm font-bold text-slate-800 dark:text-white">${menu.name}</h4>
+                                    ${timeBadgeHtml}
+                                </div>
+                                <span class="text-[10px] text-orange-500 font-bold tracking-wide uppercase bg-orange-100 dark:bg-indigo-950 dark:text-indigo-300 px-1.5 py-0.5 rounded">${menu.category}</span>
+                            </div>
+                        </div>
+                        <button onclick="removeCustomMenu(${menu.id})" class="text-slate-400 hover:text-red-500 p-2 rounded-lg transition" title="삭제">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                `;
+            });
+        }
+    </script>
+</body>
+</html>
